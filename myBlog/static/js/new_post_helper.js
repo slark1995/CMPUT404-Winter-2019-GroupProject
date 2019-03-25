@@ -96,7 +96,7 @@ function set_friends_list (){
 }
 
 function get_friends_list(){
-    let url = "/myBlog/myfriends/";
+    let url = "/service/myfriends/";
     return fetch(url, {
         method: "GET",
         mode: "cors",
@@ -118,12 +118,6 @@ function get_friends_list(){
 }
 
 // https://stackoverflow.com/questions/6941533/get-protocol-domain-and-port-from-url
-function get_host(){
-    var url = window.location.href;
-    var arr = url.split("/");
-    var result = arr[0] + "//" + arr[2];
-    return result
-}
 
 function post(){
     let form =
@@ -168,7 +162,7 @@ function post(){
         }
     }
     let body = JSON.stringify(form);
-    let url =  get_host()+"myBlog/posts/";
+    let url =  get_host()+"service/posts/";
     return fetch(url, {
         method: "POST",
         mode: "cors",
@@ -186,7 +180,7 @@ function post(){
 
         if (response.status === 200)
         {
-            window.location.replace(get_host()+"myBlog/all/");
+            window.location.replace(get_host()+"service/all/");
         }
         else
         {

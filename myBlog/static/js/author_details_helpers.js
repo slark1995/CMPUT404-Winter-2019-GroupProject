@@ -31,7 +31,7 @@ function getAuthorDetails(authorid,currentUserID,isFriend,currentUserName,follow
     authorHost = friend_host;
     authorGithub = friend_github;
     if (currentUserID != authorid){
-        let url = '/myBlog/author/'+authorid+'/posts/';
+        let url = '/service/author/'+authorid+'/posts/';
         return fetch(url,{
             method:"GET",
             mode:"cors",
@@ -45,7 +45,7 @@ function getAuthorDetails(authorid,currentUserID,isFriend,currentUserName,follow
         }).then(response => response.json());
     }
     else{
-        let url = '/myBlog/posts/mine/?size=10';
+        let url = '/service/posts/mine/?size=10';
         return fetch(url,{
             method:"GET",
             mode:"cors",
@@ -61,19 +61,30 @@ function getAuthorDetails(authorid,currentUserID,isFriend,currentUserName,follow
     }
 }
 function sendUnFriendRequest(author_id){
-    let url = '/myBlog/unfriend/'+author_id+'/';
+    let url = '/service/unfriend/'+author_id+'/';
     return fetch(url,{
         method:"delete",
         mode:"cors",
         cache:"no-cache",
         credentials:"same-origin",
         headers:{
-            "Content-Type":"application/json",
+            "Content-Type":"application/json;charset=utf-8",
+            "Accept": "application/json",
             "x-csrftoken":csrf_token,
         },
         redirect:"follow",
         referrer:"no-referrer",
-    }).then(function(){window.location.reload(true)});
+    })
+    .then(response => {
+        if (response.status === 200) 
+        { 
+            document.location.reload(true); 
+        } 
+        else 
+        {
+            alert("Something went wrong: " +  response.status);
+        }
+    }); 
 }
 function sendFollowRequest(author_id,author_host,author_name,author_url,currentUserName){
     let host = get_host();
@@ -93,7 +104,8 @@ function sendFollowRequest(author_id,author_host,author_name,author_url,currentU
         }
     }
     let body = JSON.stringify(request_form);
-    let url = "/myBlog/friendrequest/";
+    let url = author_host+"service/friendrequest/";
+    let url_local = host+"service/friendrequest/";
     return fetch(url,{
         method:"POST",
         mode:"cors",
@@ -102,55 +114,54 @@ function sendFollowRequest(author_id,author_host,author_name,author_url,currentU
         body:body,
         headers:{
             "Content-Type":"application/json",
+            "Accept": "application/json",
             "x-csrftoken":csrf_token,
         },
         redirect:"follow",
         referrer:"no-referrer",
-    }).then(function(){
-        //https://www.permadi.com/tutorial/jsInnerHTMLDOM/index.html
-       //document.getElementById('follow_Btn').childNodes[0].nodeValue="Following";
-        window.location.reload(true);
     })
+    .then(response => {
+        if (response.status === 200 && url_local!= url) 
+        {     
+            return fetch(url_local,{
+            method:"POST",
+            mode:"cors",
+            cache:"no-cache",
+            credentials:"same-origin",
+            body:body,
+            headers:{
+                "Content-Type":"application/json",
+                "Accept": "application/json",
+                "x-csrftoken":csrf_token,
+            },
+            redirect:"follow",
+            referrer:"no-referrer",
+        })
+        .then(response => {
+            if (response.status === 200) 
+            { 
+                document.location.reload(true); 
+            } 
+            else 
+            {
+                alert("Something went wrong: " +  response.status);
+            }
+        }); 
+        } 
+
+        else if (response.status === 200 && url_local == url){
+            document.location.reload(true); 
+        } 
+        else 
+        {
+            alert("Something went wrong: " +  response.status);
+        }
+    }); 
 }
 
-function commentPost(id) {
-    let commentForm =
-        {
-            "query": "addComment",
-            "comment":
-                {
-                    "comment": "",
-                    "contentType": "text/plain"
-                }
-        }
-    commentForm.comment.comment = document.getElementById("commentInput" + id).value;
-    let body = JSON.stringify(commentForm);
-    let url = "/myBlog/posts/" + id + "/comments/";
-    return fetch(url, {
-        method: "POST",
-        mode: "cors",
-        cache: "no-cache",
-        credentials: "same-origin",
-        body: body,
-        headers: {
-            "Content-Type": "application/json",
-            "x-csrftoken": csrf_token
-        },
-        redirect: "follow",
-        referrer: "no-referrer",
-    })
-        .then(response => {
-            if (response.status === 200) {
-                document.location.reload(true);
-            } else {
-                alert("Something went wrong: " + response.status);
-            }
-        });
-}
 // got data, render the page
 function renderpage(data){
     var content = document.getElementById('content');
-
 
     var authorDiv = document.createElement('div');
     authorDiv.setAttribute('id','author_div');
@@ -268,7 +279,7 @@ function renderpage(data){
             content.appendChild(postsDiv);
 
             var post_details_link = document.createElement("a");
-            post_details_link.setAttribute('href','/myBlog/postdetails/'+data.posts[i].postid+'/');
+            post_details_link.setAttribute('href','/service/postdetails/'+data.posts[i].postid+'/');
             postsDiv.appendChild(post_details_link);
             var title = document.createElement("h3");
             title.innerHTML = data.posts[i].title;

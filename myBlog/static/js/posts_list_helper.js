@@ -1,11 +1,5 @@
 // https://stackoverflow.com/questions/6941533/get-protocol-domain-and-port-from-url
-function get_host()
-{
-    var url = window.location.href;
-    var arr = url.split("/");
-    var result = arr[0] + "//" + arr[2];
-    return result
-}
+
 
 function getAllPosts(url) 
 {
@@ -25,7 +19,7 @@ function getAllPosts(url)
 
 function deletePost(id)
 {
-    let url = "/myBlog/posts/"+id;
+    let url = "/service/posts/"+id;
     return fetch(url, {
         method: "DELETE", 
         mode: "cors", 
@@ -50,17 +44,10 @@ function deletePost(id)
     });
 }
 
-function editPost(post_id){
-    window.location.href="/myBlog/modify_post/" + post_id;
-    //console.log("post_id:",post_id);
-
-    }
-    
 
 
+function commentPost(id, post_host)
 
-
-function commentPost(id)
 {
     let commentForm =
     {
@@ -73,8 +60,7 @@ function commentPost(id)
     };
     commentForm.comment.comment= document.getElementById("commentInput"+id).value;
     let body = JSON.stringify(commentForm);
-    let url = "/myBlog/posts/"+id+"/comments/";
-
+    let url = post_host+"service/posts/"+id+"/comments/";
     return fetch(url, {
         method: "POST", 
         mode: "cors", 
@@ -82,7 +68,8 @@ function commentPost(id)
         credentials: "same-origin", 
         body: body,
         headers: {
-            "Content-Type": "application/json",
+            "Content-Type": 'application/json',
+            "Accept": 'application/json',
             "x-csrftoken": csrf_token
         },
         redirect: "follow", 

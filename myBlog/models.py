@@ -94,3 +94,15 @@ class Comment(models.Model):
     def __str__(self):
         return self.comment
 
+
+class Node(models.Model): 
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    host = models.CharField(max_length=400)
+    shareImages = models.BooleanField(default=True)
+    sharePost = models.BooleanField(default=True)
+    nodeUser = models.ForeignKey(User, on_delete=models.CASCADE)
+    remoteUsername = models.CharField(max_length=400, null=True, blank=True)
+    remotePassword = models.CharField(max_length=400, null=True, blank=True)
+
+    def __str__(self):
+        return self.host
