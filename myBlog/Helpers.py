@@ -1,10 +1,10 @@
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
-from .models import Post, Author, Comment, Friend, Node
+from .models import Post, Author, Comment, Friend, Node, RemoteUser
 from rest_framework import status
 from django.contrib.auth import login, authenticate, logout
 from django.shortcuts import redirect
-from django.contrib.auth.models import User
+from django.contrib.auth.models import User, AnonymousUser
 from django.views import generic
 from django.db.models import Q
 from django.shortcuts import render
@@ -15,6 +15,7 @@ from requests.auth import HTTPBasicAuth
 import json
 import re
 import datetime
+
 
 def get_author_or_not_exits(current_user_uuid):
     if type(current_user_uuid) != UUID:
@@ -42,16 +43,9 @@ def get_current_user_uuid(request):
             author = get_object_or_404(Author, user=current_user)
             return author.id
 
-def get_current_user_host(request):
-    if (not User.objects.filter(pk=request.user.id).exists()):
-        raise Response("User coudn't find", status=404)
-    else:
-        current_user = User.objects.get(pk=request.user.id)
-        if (not Author.objects.filter(user=current_user).exists()):
-            raise Response("User coudn't find", status=404)
-        else:
-            author = get_object_or_404(Author, user=current_user)
-            return author.host
+def get_current_user_host(current_user_uuid):
+    if (not Author.objects.filter(id=current_user_uuid).exists()):
+        return Author.objects.get(id=current_user_uuid).host
 
 def verify_current_user_to_post(post, request):
     post_visibility = post.visibility
@@ -132,7 +126,8 @@ def update_remote_friendship(current_user_uuid):
     for node in Node.objects.all():
         friendshipURL = node.host+"service/author/"+str(current_user_uuid)+"/friends/"
         try:
-            response = requests.get(friendshipURL, auth=HTTPBasicAuth(node.remoteUsername, node.remotePassword))
+            remote_to_node = RemoteUser.objects.get(node=node)
+            response = requests.get(friendshipURL, auth=HTTPBasicAuth(remote_to_node.remoteUsername, remote_to_node.remotePassword))
             data = json.loads(response.content.decode('utf8').replace("'", '"'))
             remoteFriendsURL = data["authors"]
             if len(remoteFriendsURL) != 0:
@@ -149,13 +144,13 @@ def update_remote_friendship(current_user_uuid):
                         if (Friend.objects.filter(Q(author=localFriend.id), Q(status='Accept')).exists()):
                             friendship = Friend.objects.get(Q(author=localFriend.id), Q(status='Accept'))
                             last_modified_time = friendship.last_modified_time.replace(tzinfo=None)
-                            if ((datetime.datetime.utcnow() - last_modified_time).total_seconds () > 60):
+                            if ((datetime.datetime.utcnow() - last_modified_time).total_seconds () > 30):
                                 friendship.delete()
 
                         if (Friend.objects.filter(Q(friend=localFriend.id), Q(status='Accept')).exists()):
                             friendship = Friend.objects.get(Q(friend=localFriend.id), Q(status='Accept'))
                             last_modified_time = friendship.last_modified_time.replace(tzinfo=None)
-                            if ((datetime.datetime.utcnow() - last_modified_time).total_seconds () > 60):
+                            if ((datetime.datetime.utcnow() - last_modified_time).total_seconds () > 30):
                                 friendship.delete()
         except:
             pass
@@ -167,7 +162,6 @@ def update_friendship_obj(author, friend, newstatus):
         friendrequests.save()
     except:
         pass
-
 
 def check_two_users_friends(author1_id,author2_id):
     author1_object = Author.objects.get(id=author1_id)
@@ -200,7 +194,10 @@ def home(request):
         else:
             github_url = "null"
         posts_url = "/service/author/posts/?size=10"
-        return render(request, 'homepage.html', {"posts_url":posts_url, "github_url":github_url, "trashable":"false"})
+        displayName = user_author.displayName
+        user_github = user_author.github
+        return render(request, 'homepage.html', {"posts_url":posts_url, "github_url":github_url, "trashable":"false",
+                                                 'displayName':displayName,'user_id':current_user_uuid,'user_github':user_github})
     else:
         return render(request, 'homepage.html')
 
@@ -232,17 +229,24 @@ def get_follow_status(current_user_id, author_id):
         raise Response("User coudn't find", status=404)
 
 def check_remote_request(request):
-    if (Node.objects.filter(nodeUser=request.user).exists()):
-        return True
+    if type(request.user) is not AnonymousUser:
+        if (Node.objects.filter(nodeUser=request.user).exists()):
+            return True
+        else:
+            return False
     else:
         return False
 
 def get_or_create_author_if_not_exist(author_json):
     AuthorObj = get_author_or_not_exits(author_json['id'])
     if AuthorObj is False:
-        user = User.objects.create_user(username=author_json["displayName"],password="password", is_active=False)
-        userObj = get_object_or_404(User, username=author_json["displayName"])
-        author = Author.objects.create(id=author_json['id'], displayName=author_json["displayName"],user=userObj, host=author_json["host"])
+        if User.objects.filter(username=author_json["displayName"]).exists():
+            userObj = User.objects.get(username=author_json["displayName"])
+        else:
+            userObj = User.objects.create_user(username=author_json["displayName"],password="password", is_active=False)
+        host = author_json["host"]
+        host = host.replace("localhost", "127.0.0.1")
+        author = Author.objects.create(id=author_json['id'], displayName=author_json["displayName"],user=userObj, host=host)
         author.save()
         AuthorObj = author
 
@@ -254,7 +258,12 @@ def new_post(request):
 
 def my_posts(request):
     posts_url = "/service/posts/mine/?size=10"
-    return render(request, 'my_posts_list.html', {"posts_url":posts_url, "trashable":"true"})
+    current_user_id = get_current_user_uuid(request)
+    current_user = Author.objects.get(pk=current_user_id)
+    current_user_name = current_user.displayName
+    current_user_github = current_user.github
+    return render(request, 'my_posts_list.html', {"posts_url":posts_url, "trashable":"true","user_id":current_user_id,
+                "displayName":current_user_name,"user_github":current_user_github})
 
 
 
@@ -275,6 +284,7 @@ def author_details(request,author_id):
     current_user_id = get_current_user_uuid(request)
     if type(current_user_id) is UUID:
         current_user_name = Author.objects.get(pk=current_user_id).displayName
+        current_user_github = Author.objects.get(pk=current_user_id).github
         is_friend = is_my_friend(current_user_id,author_id)
         follow_status = get_follow_status(current_user_id,author_id)
         friend = Author.objects.get(pk=author_id)
@@ -286,7 +296,7 @@ def author_details(request,author_id):
                                                     'is_friend':is_friend,'followStatus':follow_status,
                                                     'current_user_name':current_user_name,'friend_host':host,
                                                     'friend_url':url,'friend_name':friend_name,
-                                                    'friend_github':friend_github})
+                                                    'friend_github':friend_github,'current_user_github':current_user_github})
     else:
         return render(request, 'homepage.html')
 
@@ -294,6 +304,8 @@ def author_details(request,author_id):
 def post_details(request, post_id):
     comments = Comment.objects.filter(postid=post_id)
     post = Post.objects.get(pk=post_id)
+    arr = post.origin.split("/")
+    post_host = arr[0]+"//"+arr[2]+'/'
     accessible = verify_current_user_to_post(post, request)
     if accessible:
         if post.contentType == "image/png;base64" or post.contentType == "image/jpeg;base64":
@@ -304,6 +316,7 @@ def post_details(request, post_id):
         current_author_id = get_current_user_uuid(request)
         if type(current_author_id) is UUID:
             current_display_name = Author.objects.get(pk=current_author_id).displayName
+            current_user_github = Author.objects.get(pk=current_author_id).github
             if (post.author.displayName == current_display_name):
                 current_author_is_owner = True
             else:
@@ -323,8 +336,59 @@ def post_details(request, post_id):
                                                         'published': post.published, 'comments': comments,
                                                         "contentIsPicture": content_is_picture, 'postID': post.postid,
                                                         "currentAuthorIsOwner": current_author_is_owner,
-                                                        "textAreaID": text_area_id})
+                                                        "textAreaID": text_area_id,"current_user_id":current_author_id,
+                                                        "current_user_name":current_display_name,"current_user_github":current_user_github,
+                                                        "post_host":post_host})
         else:
             return render(request, 'homepage.html')
     else:
         raise Http404("Post does not exist")
+
+
+def edit_post(request, post_id):
+    comments = Comment.objects.filter(postid=post_id)
+    post = Post.objects.get(pk=post_id)
+    accessible = verify_current_user_to_post(post, request)
+    if accessible:
+
+        current_author_id = get_current_user_uuid(request)
+        if type(current_author_id) is UUID:
+            current_display_name = Author.objects.get(pk=current_author_id).displayName
+            if post.author.displayName == current_display_name:
+                current_author_is_owner = True
+            else:
+                current_author_is_owner = False
+
+            text_area_id = "commentInput" + post_id
+
+            visible_to_names = []
+            visible_to_ids = []
+
+            if post.visibleTo != 'null':
+                for visible_to in post.visibleTo.split(","):
+                    visible_to_names.append(Author.objects.get(pk=visible_to).displayName)
+                    visible_to_ids.append(Author.objects.get(pk=visible_to).id.urn.replace("urn:uuid:", ""))
+
+            return render(request, 'editpost.html', {'author': post.author, 'title': post.title,
+                                                        'description': post.description, 'categories': post.categories,
+                                                        'unlisted': post.unlisted,
+                                                        'content': post.content, 'visibility': post.visibility,
+                                                        'published': post.published, 'comments': comments,
+                                                        "contentType": post.contentType, 'postID': post.postid,
+                                                        "textAreaID": text_area_id,
+                                                        "visibleToNames": visible_to_names,
+                                                        "visibleToIDs": visible_to_ids
+                                                     })
+        else:
+            return render(request, 'homepage.html')
+    else:
+        raise Http404("Post does not exist")
+
+
+
+# People available to show
+# file
+
+# Very slow loading picture content
+# pressing change button must make changes
+# change new_post_helper to post_editor_helper?

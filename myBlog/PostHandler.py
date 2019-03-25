@@ -2,7 +2,7 @@ import markdown
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404, render,get_list_or_404
-from .models import Post, Author, Comment, Friend, Node
+from .models import Post, Author, Comment, Friend, Node, RemoteUser
 from .serializers import PostSerializer, CommentSerializer, AuthorSerializer, CustomPagination, FriendSerializer
 from rest_framework import status
 from django.contrib.auth.models import User, AnonymousUser
@@ -60,7 +60,27 @@ class NewPostHandler(APIView):
                 }
             return Response(responsBody, status=status.HTTP_200_OK)
         else:
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST) 
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def put(self, request, format=None):
+        current_user_uuid = Helpers.get_current_user_uuid(request)
+        author = Helpers.get_author_or_not_exits(current_user_uuid)
+        origin = Helpers.get_host_from_request(request)
+        data = request.data
+        if (data["contentType"] == "text/markdown"):
+            data["content"] = markdown.markdown(data["content"])
+        post = Post.objects.get(pk=data['id'])
+        serializer = PostSerializer(post, data=data, context={'author': author, 'origin': origin})
+        if serializer.is_valid():
+            serializer.save()
+            responsBody = {
+                "query": "addPost",
+                "success": True,
+                "message": "Post Added"
+            }
+            return Response(responsBody, status=status.HTTP_200_OK)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
  
 
 # https://www.django-rest-framework.org/tutorial/2-requests-and-responses/
@@ -212,8 +232,9 @@ class PostToUserHandlerView(APIView):
             sharePosts = remoteNode.sharePost
             delete_remote_nodes_post()
             if not (Author.objects.filter(id = current_user_uuid).exists()):
+                remote_to_node = RemoteUser.objects.get(node=remoteNode)
                 authorProfileURL = remoteNode.host + "service/author/" +str(current_user_uuid)
-                response = requests.get(authorProfileURL, auth=HTTPBasicAuth(remoteNode.remoteUsername, remoteNode.remotePassword))
+                response = requests.get(authorProfileURL, auth=HTTPBasicAuth(remote_to_node.remoteUsername, remote_to_node.remotePassword))
                 remoteAuthorJson = json.loads(response.content.decode('utf8').replace("'", '"'))
                 remoteAuthorObj = Helpers.get_or_create_author_if_not_exist(remoteAuthorJson)
         else:
@@ -221,7 +242,7 @@ class PostToUserHandlerView(APIView):
             delete_remote_nodes_post()
             pull_remote_nodes(current_user_uuid)
 
-        if type(current_user_uuid) == UUID:
+        if type(current_user_uuid) is UUID:
             Helpers.update_remote_friendship(current_user_uuid)
             my_posts_list=[]
             public_posts_list = []
@@ -234,7 +255,7 @@ class PostToUserHandlerView(APIView):
                 my_posts_list = get_list_or_404(Post.objects.order_by('-published'), Q(unlisted=False), Q(author_id=current_user_uuid))
 
             if (Post.objects.filter(Q(unlisted=False), ~Q(author_id=current_user_uuid), Q(visibility='PUBLIC')).exists()):
-                    public_posts_list = get_list_or_404(Post.objects.order_by('-published'), ~Q(author_id=current_user_uuid), Q(unlisted=False), Q(visibility='PUBLIC'))
+                public_posts_list = get_list_or_404(Post.objects.order_by('-published'), ~Q(author_id=current_user_uuid), Q(unlisted=False), Q(visibility='PUBLIC'))
 
             friends_list = Helpers.get_friends(current_user_uuid)
             for friend in friends_list:
@@ -251,7 +272,7 @@ class PostToUserHandlerView(APIView):
                             private_posts_list.append(post)
 
                 if (Post.objects.filter(Q(unlisted=False), Q(author_id=friend.id), Q(visibility='SERVERONLY')).exists()):
-                    if (Helpers.get_current_user_host(request)==friend.host):
+                    if (Helpers.get_current_user_host(current_user_uuid)==friend.host):
                         serveronly_posts_list += get_list_or_404(Post.objects.order_by('-published'), Q(unlisted=False), Q(author_id=friend.id),Q(visibility='SERVERONLY'))
            
                 friends_of_this_friend =  Helpers.get_friends(friend.id)
@@ -284,8 +305,13 @@ class PostToUserHandlerView(APIView):
             results = paginator.paginate_queryset(filtered_share_list, request)
             serializer=PostSerializer(results, many=True)
             return paginator.get_paginated_response(serializer.data) 
+
         else:
-            return Response("User UUID not found", status=404)
+            public_posts_list = get_list_or_404(Post.objects.order_by('-published'), Q(unlisted=False), Q(visibility='PUBLIC'))
+            paginator = CustomPagination()
+            results = paginator.paginate_queryset(public_posts_list, request)
+            serializer=PostSerializer(results, many=True)
+            return paginator.get_paginated_response(serializer.data) 
 
 
 # https://stackoverflow.com/questions/19360874/pass-url-argument-to-listview-queryset answered Oct 14 '13 at 13:11 Aamir Adnan
@@ -317,7 +343,7 @@ class PostToUserIDHandler(APIView):
 
                 if (Post.objects.filter(Q(unlisted=False),Q(author_id=user_id), Q(visibility='SERVERONLY')).exists()):
                     user_host = Author.objects.get(id=user_id)
-                    if (Helpers.get_current_user_host(request)==user_host):
+                    if (Helpers.get_current_user_host(current_user_uuid)==user_host):
                         serveronly_posts_list = get_list_or_404(Post.objects.order_by('-published'), Q(unlisted=False),Q(author_id=user_id),Q(visibility='SERVERONLY'))
                 
                 friends_of_this_friend =  Helpers.get_friends(user_id)
@@ -354,7 +380,8 @@ def pull_remote_nodes(current_user_uuid):
         try:
             nodeURL = node.host+"service/author/posts/?author_uuid="+str(current_user_uuid)
             # http://docs.python-requests.org/en/master/user/authentication/ ©MMXVIII. A Kenneth Reitz Project.
-            response = requests.get(nodeURL, auth=HTTPBasicAuth(node.remoteUsername, node.remotePassword))
+            remote_to_node = RemoteUser.objects.get(node=node)
+            response = requests.get(nodeURL, auth=HTTPBasicAuth(remote_to_node.remoteUsername, remote_to_node.remotePassword))
             postJson = json.loads(response.content.decode('utf8').replace("'", '"'))
             if int(postJson["count"]) != 0: 
                 for i in range (0,len(postJson["posts"])):
@@ -366,11 +393,20 @@ def pull_remote_nodes(current_user_uuid):
                             origin=postJson["posts"][i]["origin"], content=postJson["posts"][i]["content"],categories=postJson["posts"][i]["categories"], 
                             contentType=postJson["posts"][i]["contentType"], author=remoteAuthorObj,visibility=postJson["posts"][i]["visibility"], 
                             visibleTo=postJson["posts"][i]["visibleTo"], description=postJson["posts"][i]["description"],
-                            unlisted=postJson["posts"][i]["unlisted"], published=postJson["posts"][i]["published"])
+                            unlisted=postJson["posts"][i]["unlisted"])
                             #https://stackoverflow.com/questions/969285/how-do-i-translate-an-iso-8601-datetime-string-into-a-python-datetime-object community wiki 5 revs, 4 users 81% Wes Winham
                         publishedObj = dateutil.parser.parse(postJson["posts"][i]["published"])
                         remotePostObj.published = publishedObj
                         remotePostObj.save()
+                    if len(postJson["posts"][i]["comments"]) != 0:
+                        for j in range (0, len(postJson["posts"][i]["comments"])):
+                            remotePostCommentAuthorJson = postJson["posts"][i]["comments"][j]["author"]
+                            remotePostCommentAuthorObj = Helpers.get_or_create_author_if_not_exist(remotePostCommentAuthorJson)
+                            remotePostCommentObj = Comment.objects.create(id=postJson["posts"][i]["comments"][j]["id"], postid=postJson["posts"][i]["comments"][j]["postid"],
+                            author = remotePostCommentAuthorObj, comment=postJson["posts"][i]["comments"][j]["comment"],contentType=postJson["posts"][i]["comments"][j]["contentType"])
+                            commentPublishedObj = dateutil.parser.parse(postJson["posts"][i]["comments"][j]["published"])
+                            remotePostCommentObj.published = commentPublishedObj
+                            remotePostCommentObj.save()
         except Exception as e:
             continue
 
@@ -378,6 +414,13 @@ def pull_remote_nodes(current_user_uuid):
 def delete_remote_nodes_post():
     # https://stackoverflow.com/questions/8949145/filter-django-database-for-field-containing-any-value-in-an-array answered Jan 20 '12 at 23:36 Ismail Badawi
     for node in Node.objects.all():
-        Post.objects.filter(origin__contains=node.host).delete()
-        Post.objects.filter(source__contains=node.host).delete()
+        orginRelatedPosts = Post.objects.filter(origin__contains=node.host)
+        sourceRelatedPosts = Post.objects.filter(source__contains=node.host)
+        for post in orginRelatedPosts:
+            Comment.objects.filter(postid=post.postid).delete()
 
+        for post in sourceRelatedPosts:
+            Comment.objects.filter(postid=post.postid).delete()
+
+        orginRelatedPosts.delete()
+        sourceRelatedPosts.delete()

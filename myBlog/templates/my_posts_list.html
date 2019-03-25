@@ -44,26 +44,33 @@ function display_my_posts(data) {
           trashLogo.style.marginTop = "25px";
           trashLogo.onclick=function(){deletePost(post_id)} ;
           post.appendChild(trashLogo);
+
+          var editLogo = document.createElement("a");
+          editLogo.classList.add("fa", "fa-pencil", "w3-right", "w3-margin-right", "w3-button");
+          editLogo.style.width = "25px";
+          editLogo.style.margin = "25px";
+          editLogo.setAttribute('href','/service/editpost/'+post_id+'/');
+          post.appendChild(editLogo);
         }
 
 
-        var editLogo = document.createElement("i");
-        editLogo.classList.add("fa", "fa-pencil", "w3-right", "w3-margin-right", "w3-button");
-        editLogo.style.width = "25px";
-        editLogo.style.marginTop = "25px";
-        editLogo.setAttribute('id',i)
-        //editLogo.addEventListener('click',function(){
-            //editPost(this.id,data.post)
-        //})
-        editLogo.onclick=function(){editPost(post_id)};
-        post.appendChild(editLogo);
+// <<<<<<< HEAD
+//         var editLogo = document.createElement("i");
+//         editLogo.classList.add("fa", "fa-pencil", "w3-right", "w3-margin-right", "w3-button");
+//         editLogo.style.width = "25px";
+//         editLogo.style.marginTop = "25px";
+//         editLogo.setAttribute('id',i)
+//         //editLogo.addEventListener('click',function(){
+//             //editPost(this.id,data.post)
+//         //})
+//         editLogo.onclick=function(){editPost(post_id)};
+//         post.appendChild(editLogo);
 
 
 
 
 
-
-
+// >>>>>>> upstream/master
         var author = document.createElement("a");
         var friend_id = data.posts[i]['author']['id'];
         author.setAttribute('href','/service/authordetails/'+friend_id+'/');
@@ -141,7 +148,11 @@ function display_my_posts(data) {
         commentButton.classList.add("w3-button", "w3-theme-d1", "w3-margin-bottom", "w3-right");
         commentButton.insertAdjacentHTML("beforeend", "<i class='fa fa-comment'></i>  Comment");
         let post_id = data.posts[i].postid;
-        commentButton.onclick=function(){commentPost(post_id)} ;
+        let post_host = data.posts[i].author.host;
+        let user_id = "{{ user_id }}";
+        let displayName = "{{ displayName }}";
+        let user_github = "{{ user_github }}";
+        commentButton.onclick=function(){commentPost(post_id,post_host,user_id,displayName,user_github)} ;
         divDescription.appendChild(commentButton);
 
       }

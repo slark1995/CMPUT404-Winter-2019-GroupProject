@@ -1,7 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404, render,get_list_or_404
-from .models import Post, Author, Comment, Friend
+from .models import Post, Author, Comment, Friend, Node, RemoteUser
 from .serializers import PostSerializer, CommentSerializer, AuthorSerializer, CustomPagination, FriendSerializer
 from rest_framework.parsers import JSONParser
 from rest_framework import status
@@ -39,8 +39,7 @@ class CommentHandler(APIView):
             try:
                 data['query'] == 'addComment'
                 post = Post.objects.get(pk=postid)
-                current_user_uuid = Helpers.get_current_user_uuid(request)
-                author = Helpers.get_author_or_not_exits(current_user_uuid)
+                author = Helpers.get_or_create_author_if_not_exist(data['comment']['author'])
                 serializer = CommentSerializer(data=data['comment'], context={'author': author, 'postid':postid})
                 if serializer.is_valid():
                     serializer.save()
@@ -51,7 +50,7 @@ class CommentHandler(APIView):
                     }
                     return Response(responsBody, status=status.HTTP_200_OK)
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-            except:
+            except Exception as e:
                 responsBody={
                 "query": "addCoemment",
                 "success":False,

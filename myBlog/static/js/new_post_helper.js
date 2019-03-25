@@ -37,21 +37,6 @@ function enableVisibleTo()
 
 
 // https://www.w3schools.com/jsref/prop_style_visibility.asp
-function enableInput()
-{
-    var selectedType = document.getElementById("post-contenttype").value;
-    if (selectedType=="image/png;base64" || selectedType=="image/jpeg;base64"){
-        alert("Since you selected img, you will not be able to add content");
-        document.getElementById("post-content").readOnly  = true;
-        document.getElementById("my-file").disabled = false;
-    }
-    else{
-        document.getElementById("post-content").readOnly  = false;
-        document.getElementById("my-file").disabled = true;
-        document.getElementById("post-content").value = "";
-
-    }
-}
 
 function enableInput_modify(data)
 {
@@ -130,7 +115,7 @@ function post(){
         description:"",
         visibleTo:"",
         unlisted:""
-    }
+    };
     form.title = document.getElementById("post-title").value;
     form.contentType = document.getElementById("post-contenttype").value;
     form.categories = document.getElementById("post-categories").value;
