@@ -104,9 +104,12 @@ function sendFollowRequest(author_id,author_host,author_name,author_url,currentU
         }
     }
     let body = JSON.stringify(request_form);
-    let url = author_host+"service/friendrequest/";
+    console.log(body);
+    // let url = author_host+"service/friendrequest/";
     let url_local = host+"service/friendrequest/";
-    return fetch(url,{
+    // console.log("Sending to author server:");
+    // console.log(url);
+    return fetch(url_local,{
         method:"POST",
         mode:"cors",
         cache:"no-cache",
@@ -121,42 +124,13 @@ function sendFollowRequest(author_id,author_host,author_name,author_url,currentU
         referrer:"no-referrer",
     })
     .then(response => {
-        if (response.status === 200 && url_local!= url) 
-        {     
-            return fetch(url_local,{
-            method:"POST",
-            mode:"cors",
-            cache:"no-cache",
-            credentials:"same-origin",
-            body:body,
-            headers:{
-                "Content-Type":"application/json",
-                "Accept": "application/json",
-                "x-csrftoken":csrf_token,
-            },
-            redirect:"follow",
-            referrer:"no-referrer",
-        })
-        .then(response => {
-            if (response.status === 200) 
-            { 
-                document.location.reload(true); 
-            } 
-            else 
-            {
-                alert("Something went wrong: " +  response.status);
-            }
-        }); 
-        } 
-
-        else if (response.status === 200 && url_local == url){
-            document.location.reload(true); 
-        } 
-        else 
-        {
-            alert("Something went wrong: " +  response.status);
+        if (response.status === 200) {
+           document.location.reload(true);
+        }else{
+           alert("Something went wrong: " +  response.status);
         }
-    }); 
+    })
+
 }
 
 // got data, render the page
@@ -279,7 +253,7 @@ function renderpage(data){
             content.appendChild(postsDiv);
 
             var post_details_link = document.createElement("a");
-            post_details_link.setAttribute('href','/service/postdetails/'+data.posts[i].postid+'/');
+            post_details_link.setAttribute('href','/service/postdetails/'+data.posts[i].id+'/');
             postsDiv.appendChild(post_details_link);
             var title = document.createElement("h3");
             title.innerHTML = data.posts[i].title;
@@ -326,7 +300,7 @@ function renderpage(data){
             }
 
             var commentInput = document.createElement('textarea');
-            commentInput.id = 'commentInput' + posts.postid;
+            commentInput.id = 'commentInput' + posts.id;
             commentInput.classList.add('w3-border', 'w3-padding');
             commentInput.type = 'text';
             commentInput.style.width = '100%';
@@ -335,7 +309,7 @@ function renderpage(data){
             var commentButton = document.createElement('button');
             commentButton.classList.add('w3-buuton', "w3-theme-d1", "w3-margin-bottom", "w3-right");
             commentButton.insertAdjacentHTML("beforeend", "<i class='fa fa-comment'></i>  Comment");
-            let post_id = posts.postid;
+            let post_id = posts.id;
             let post_host = posts.author.host;
             commentButton.onclick = function () {
                 commentPost(post_id,post_host,current_user_id,cuurent_user_name,current_user_github);
