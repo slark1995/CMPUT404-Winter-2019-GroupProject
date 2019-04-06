@@ -86,15 +86,16 @@ function sendUnFriendRequest(author_id){
         }
     }); 
 }
-function sendFollowRequest(author_id,author_host,author_name,author_url,currentUserName){
+function sendFollowRequest(author_id,author_host,author_name,author_url,currentUserName,currentUserID){
     let host = get_host();
+    console.log(host)
     let request_form = {
         "query":"friendrequest",
         "author":{
-            'id':current_user_id,
+            'id':currentUserID,
             'host':host,
             'displayName':currentUserName,
-            'url':host+current_user_id,
+            'url': host + currentUserID,
         },
         "friend":{
             'id':author_id,
@@ -240,12 +241,24 @@ function renderpage(data){
                 followBtn.appendChild(followText);
                 btnDiv.appendChild(followBtn);
                 followBtn.addEventListener('click', function () {
-                    sendFollowRequest(author_id, authorHost, authorName, authorUrl, cuurent_user_name);
+                    sendFollowRequest(author_id, authorHost, authorName, authorUrl, cuurent_user_name,current_user_id);
                 });
 
             }
         }
         // traverse data, render posts
+        if (data['posts'].length == 0){
+            let post = document.createElement("div");
+            post.classList.add("w3-container", "w3-card", "w3-white", "w3-round", "w3-margin");
+            content.appendChild(post);
+            let notFound = document.createElement("h2");
+            notFound.innerHTML = "No posts found for this author";
+            notFound.classList.add("w3-row-padding");
+            notFound.style.margin = "20px";
+            post.appendChild(notFound);
+        }
+
+
         for (let i = 0; i < data['posts'].length; i++) {
             let posts = data['posts'][i];
             let postsDiv = document.createElement('div');
@@ -272,6 +285,10 @@ function renderpage(data){
             divDescription.classList.add('w3-row-padding');
             divDescription.style.margin = '0 20px';
             postsDiv.appendChild(divDescription);
+
+            if (posts.content.includes("script>")){
+                posts.content = JSON.stringify(posts.content)
+            }
 
             if (posts.contentType == 'image/png;base64' || posts.contentType == 'image/jpeg;base64') {
                 var imgContent = document.createElement('img');
