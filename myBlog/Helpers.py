@@ -290,7 +290,7 @@ def get_or_create_author_if_not_exist(author_json):
 
     AuthorObj = get_author_or_not_exits(author_id)
     if AuthorObj is False:
-        if author_json["displayName"] is None:
+        if (author_json["displayName"] is None) or (author_json["displayName"] ==""):
             author_json["displayName"] = "null"
         if User.objects.filter(username=author_json["displayName"]).exists():
             userObj = User.objects.get(username=author_json["displayName"])
@@ -372,15 +372,15 @@ def update_this_friendship(remoteNode,remote_user_uuid,request):
     remote_host = remoteNode.host
     remote_to_node = RemoteUser.objects.get(node=remoteNode)
     local_friend_list_of_remote_user = []
-    # local_friends_obj_list = list(Friend.objects.filter(Q(author=remote_authorObj)|Q(friend=remote_authorObj)))
     if Friend.objects.filter(author=remote_authorObj).exists():
-        local_friend_list_of_remote_user += [friend.friend.host+"service/author/"+str(friend.friend.id) for friend in list(Friend.objects.filter(author=remote_authorObj))]
+        local_friend_list_of_remote_user += [friend.friend.host+"service/author/"+str(friend.friend.id) 
+        for friend in list(Friend.objects.filter(author=remote_authorObj))]
     if Friend.objects.filter(friend=remote_authorObj).exists():
-        local_friend_list_of_remote_user += [friend.author.host+"service/author/"+str(friend.author.id) for friend in list(Friend.objects.filter(friend=remote_authorObj))]
+        local_friend_list_of_remote_user += [friend.author.host+"service/author/"+str(friend.author.id) 
+        for friend in list(Friend.objects.filter(friend=remote_authorObj))]
 
 
     if local_friend_list_of_remote_user:
-        # local_friend_list_of_remote_user = [str(friend.id) for friend in local_friends_obj_list]
         request_body = {
             "query":"friends",
             "author":remote_host + "service/author/"+str(remote_user_uuid),
@@ -390,15 +390,21 @@ def update_this_friendship(remoteNode,remote_user_uuid,request):
         request_url = remote_host + "service/author/"+str(remote_user_uuid)+"/friends/"
         headers = {"Content-Type": 'application/json', "Accept": 'application/json'}
         data = json.dumps(request_body)
+        #if "wave" in remote_host:	
+        #    response = requests.get(request_url,headers=headers,auth=HTTPBasicAuth(remote_to_node.remoteUsername,remote_to_node.remotePassword))	
+        #else:
         response = requests.post(request_url,headers=headers,data=data,auth=HTTPBasicAuth(remote_to_node.remoteUsername,remote_to_node.remotePassword))
         if response.status_code == 200:
-            response_friendlist_set = set(response.json()["authors"])
-            local_friend_set = set(local_friend_list_of_remote_user)
+            response_friendlist = response.json()["authors"]
+            response_friendlist_set=set([re.sub('.+/author/', '', friend) for friend in response_friendlist])
+            local_friend_set = set([re.sub('.+/author/','',friend)for friend in local_friend_list_of_remote_user])
             extra_friend = local_friend_set - response_friendlist_set
             my_host = request.get_host()
+            print("local_friend_set %s"%str(local_friend_set))
+            print("response_friendlist_set %s"%str(response_friendlist_set))
+            print("extra_friend %s"%str(extra_friend))
             try:
                 for friend_url in extra_friend:
-                    # TODO: get friend's host in smart way
                     try:
                         if 'author/' in friend_url:
                             friend_uuid = friend_url.split('author/')[1]
@@ -408,16 +414,16 @@ def update_this_friendship(remoteNode,remote_user_uuid,request):
                                 print("Author/Friend id in bad format")
                         else:
                             try:
-                                friend_uuid = UUID(friend_uuid)
+                                friend_uuid = UUID(friend_url)
                             except:
                                 print("Author/Friend id in bad format")
                     except:
                         print("Author/Friend id in bad format")
                     friend_obj = Author.objects.get(Q(pk=friend_uuid))
-                    if Friend.objects.filter(Q(author=friend_obj),Q(status="Accept")).exists():
-                        Friend.objects.get(Q(author=friend_obj),Q(status="Accept")).delete()
-                    if Friend.objects.filter(Q(friend=friend_obj),Q(status="Accept")).exists():
-                        Friend.objects.get(Q(friend=friend_obj),Q(status="Accept")).delete()
+                    if Friend.objects.filter(Q(author=friend_obj), Q(friend=remote_authorObj), Q(status="Accept")).exists():
+                        Friend.objects.get(Q(author=friend_obj), Q(friend=remote_authorObj), Q(status="Accept")).delete()
+                    if Friend.objects.filter(Q(friend=friend_obj), Q(author=remote_authorObj),Q(status="Accept")).exists():
+                        Friend.objects.get(Q(friend=friend_obj), Q(author=remote_authorObj),Q(status="Accept")).delete()
 
             except Exception as e:
                 print("an error occured: %s"%e)

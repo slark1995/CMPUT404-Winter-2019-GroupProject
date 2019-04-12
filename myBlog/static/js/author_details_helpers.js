@@ -95,7 +95,7 @@ function sendFollowRequest(author_id,author_host,author_name,author_url,currentU
             'id':currentUserID,
             'host':host,
             'displayName':currentUserName,
-            'url': host + currentUserID,
+            'url': host +'author/'+ currentUserID,
         },
         "friend":{
             'id':author_id,
@@ -198,7 +198,6 @@ function renderpage(data){
             dropdownContentDiv.appendChild(contentlink);
             contentlink.classList.add("w3-bar-item", "w3-button");
             contentlink.innerHTML = 'Unfollow';
-            // TODO: change function
             contentlink.addEventListener('click',function(){
                 sendUnFriendRequest(author_id);
             });
@@ -226,7 +225,6 @@ function renderpage(data){
                 dropdownContentDiv.appendChild(contentlink);
                 contentlink.classList.add("w3-bar-item", "w3-button");
                 contentlink.innerHTML = 'Unfollow';
-                // TODO: change function
                 contentlink.addEventListener('click',function(){
                     sendUnFriendRequest(author_id);
                 });
